@@ -1,0 +1,15 @@
+[package]
+name = "test_bridge"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+borsh = "0.9"
+solana-program = "=1.14.4"
+thiserror = "1.0"
+spl-token = { version="3.5.0", features = [ "no-entrypoint" ] }
+bigint = "4.4.3"
+bs58 = "0.4.0"
+
+[lib]
+crate-type = ["cdylib", "lib"]
