@@ -1,14 +1,18 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use solana_program::pubkey::Pubkey;
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub enum BridgeInstruction {
     Initialize,
     TransferOut,
+    TransferIn,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub struct BridgeData {
-    pub bump: u8, // bump seed of tracker
+    pub bump: u8,            // 1 byte
+    pub admins: [Pubkey; 3], // 32 * 3 bytes
+    pub admin_index: u8,     // 1 byte
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
@@ -16,7 +20,6 @@ pub struct TransferOutData {
     pub amount: u128,
     pub token_address: String,
     pub chain_id: u64,
-
     pub recipient: String,
 }
 

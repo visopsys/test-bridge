@@ -1,3 +1,6 @@
+Open a new window and run solana-test-validator (you can reset the chain by deleting test-ledger folder)
+
+On a separate window:
 ) Create token
 ) Initialize bridge pda
 ) Create associated token address for owner and bridge
