@@ -3,16 +3,18 @@ import {
   Keypair,
   PublicKey,
 } from "@solana/web3.js";
-
 import {
   readFile,
 } from "mz/fs";
+import dotenv from 'dotenv';
+dotenv.config();
 
 const NETWORK = "localhost";
-const bridgeProgramId = new PublicKey("HguMTvmDfspHuEWycDSP1XtVQJi47hVNAyLbFEf2EJEQ");
-const mintPubkey = new PublicKey("H9bLazh1cXh5iEkSJGEtcZdvWp158qRPY27WyRQJChHH");
-const ownerAssociatedAccount = new PublicKey("82CmzsBriFuHVNRHoUnbNhqReRKLEiCKM6yNQ8SMSPxs");
-const bridgeAssociatedAccount = new PublicKey("GfZrDwCRLZtdhJuHytCwYP7VLguN2e5UjZWgV9YTLos4");
+
+const bridgeProgramId = new PublicKey(String(process.env.BRIDGE_PROGRAM_ID!));
+const mintPubkey = new PublicKey(String(process.env.MINT_PUBKEY!));
+const ownerAssociatedAccount = new PublicKey(String(process.env.OWNER_ATA!));
+const bridgeAssociatedAccount = new PublicKey(String(process.env.BRIDGE_ATA!));
 
 const getFeePayer = async () => {
   let secretKeyString = await readFile("/Users/billy/.config/solana/id.json", {
@@ -44,6 +46,19 @@ const getTxUrl = (txid: string) => {
   return null;
 };
 
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function accountExisted(connection: Connection, pubkey: PublicKey): Promise<boolean> {
+  let account = await connection.getAccountInfo(pubkey, "confirmed");
+  if (account) {
+    return true;
+  }
+
+  return false;
+}
+
 export {
   getFeePayer,
   getConnection,
@@ -52,4 +67,6 @@ export {
   getTxUrl,
   ownerAssociatedAccount,
   bridgeAssociatedAccount,
+  sleep,
+  accountExisted,
 }

@@ -1,50 +1,67 @@
 import {
   PublicKey,
   Transaction,
+  sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import {
   getAssociatedTokenAddress,
-  createAssociatedTokenAccountInstruction,createAssociatedTokenAccount
-
+  createAssociatedTokenAccountInstruction,
 } from "@solana/spl-token";
 
 import {
   getFeePayer,
   getConnection,
-  bridgeProgramId,
   mintPubkey,
+  accountExisted,
 } from './common'
 
-(async () => {
+const createTokenAccount = async (mintPubkey: PublicKey, ownerPubkey: PublicKey) => {
   // connection
   const connection = getConnection();
   const feePayer = await getFeePayer();
 
-  const result = await PublicKey.findProgramAddress(
-    [Buffer.from('SisuBridge', 'utf8')],
-    bridgeProgramId
-  );
-  console.log("Address and bump = ", result[0].toString(), result[1]);
-
-  const owner = result[0];
-  // const owner = feePayer.publicKey;
-
   // if your wallet is off-curve, you should use
   let ata = await getAssociatedTokenAddress(
     mintPubkey, // mint
-    owner, // owner
+    ownerPubkey, // owner
     true, // allowOwnerOffCurve
   );
 
-  console.log(`ATA: ${ata.toBase58()}`);
+  if (await accountExisted(connection, ata)) {
+    console.log("ATA account has been created");
+    return ata;
+  }
 
   let tx = new Transaction().add(
     createAssociatedTokenAccountInstruction(
       feePayer.publicKey, // payer
       ata, // ata
-      owner, // owner
+      ownerPubkey, // owner
       mintPubkey // mint
     )
   );
-  console.log(`txhash: ${await connection.sendTransaction(tx, [feePayer])}`);
+
+  let txid = await sendAndConfirmTransaction(connection, tx, [feePayer], {
+    skipPreflight: true,
+    preflightCommitment: "confirmed",
+    commitment: "confirmed",
+  });
+
+  console.log(`ATA: ${ata.toBase58()}`);
+
+  return ata;
+}
+
+(async () => {
+  if (process.argv[1] != __filename) {
+    return ;
+  }
+
+  const feePayer = await getFeePayer();
+  await createTokenAccount(mintPubkey, feePayer.publicKey);
 })();
+
+
+export {
+  createTokenAccount
+}

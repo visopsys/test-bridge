@@ -1,19 +1,14 @@
 import {
-  clusterApiUrl,
-  Connection,
   PublicKey,
-  Keypair,
   Transaction,
+  sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import {
-  approveChecked,
-  getAssociatedTokenAddress,
   createApproveCheckedInstruction,
 } from "@solana/spl-token";
-import * as bs58 from "bs58";
-import { getFeePayer, getConnection, bridgeProgramId, mintPubkey, ownerAssociatedAccount, bridgeAssociatedAccount } from "./common";
+import { getFeePayer, getConnection, bridgeProgramId, mintPubkey, ownerAssociatedAccount } from "./common";
 
-(async () => {
+const approveToken = async(bridgeProgramId: PublicKey) => {
   const feePayer = await getFeePayer();
   const result = await PublicKey.findProgramAddress(
     [Buffer.from('SisuBridge', 'utf8')],
@@ -21,10 +16,6 @@ import { getFeePayer, getConnection, bridgeProgramId, mintPubkey, ownerAssociate
   );
   console.log("Address and bump = ", result[0].toString(), result[1]);
   const bridgePda = result[0];
-
-  // const bridgeAssociatedAddr = new PublicKey(
-  //   "68cDVqhtoaECnX3zQQJNkJQbyEqbYkhtq9wM433X3NUZ"
-  // );
 
   let tx = new Transaction().add(
     createApproveCheckedInstruction(
@@ -38,10 +29,22 @@ import { getFeePayer, getConnection, bridgeProgramId, mintPubkey, ownerAssociate
   );
 
   const connection = getConnection();
-  console.log(
-    `txhash: ${await connection.sendTransaction(tx, [
-      feePayer,
-      feePayer,
-    ])}`
-  );
+  await sendAndConfirmTransaction(connection, tx, [feePayer], {
+    skipPreflight: true,
+    preflightCommitment: "confirmed",
+    commitment: "confirmed",
+  });
+}
+
+(async () => {
+  if (process.argv[1] != __filename) {
+    return ;
+  }
+
+  console.log("Running approve token");
+  await approveToken(bridgeProgramId);
 })();
+
+export {
+  approveToken
+}

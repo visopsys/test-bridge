@@ -13,59 +13,7 @@ import {
 } from "./types";
 import { serialize } from "borsh";
 
-const createBridgeAccount = async() => {
-  const connection = getConnection();
-  const feePayer = await getFeePayer();
-
-  const result = await PublicKey.findProgramAddress(
-    [Buffer.from('SisuBridge', 'utf8')],
-    bridgeProgramId
-  );
-  console.log("Address and bump = ", result[0].toString(), result[1]);
-  const bridgePda = result[0];
-
-  let pdaAccount = await connection.getAccountInfo(bridgePda, "confirmed");
-  if (pdaAccount) {
-    console.log("Pda has been created!")
-    return;
-  }
-
-  let ix = new TransactionInstruction({
-    keys: [
-      {
-        pubkey: feePayer.publicKey,
-        isSigner: true,
-        isWritable: false,
-      },
-      {
-        pubkey: bridgePda,
-        isSigner: false,
-        isWritable: true,
-      },
-      {
-        pubkey: SystemProgram.programId,
-        isSigner: false,
-        isWritable: false,
-      }
-    ],
-    data: Buffer.from(new Uint8Array([0])),
-    programId: bridgeProgramId,
-  });
-
-  let signers = [feePayer];
-  const tx = new Transaction();
-  tx.add(ix);
-
-  let txid = await sendAndConfirmTransaction(connection, tx, signers, {
-    skipPreflight: true,
-    preflightCommitment: "confirmed",
-    commitment: "confirmed",
-  });
-
-  console.log(getTxUrl(txid));
-}
-
-const transferToBridge = async() => {
+const transferOut = async() => {
   const connection = getConnection();
   const feePayer = await getFeePayer();
 
@@ -97,11 +45,6 @@ const transferToBridge = async() => {
         isWritable: false,
       },
       {
-        pubkey: mintPubkey,
-        isSigner: false,
-        isWritable: false,
-      },
-      {
         pubkey: ownerAssociatedAccount,
         isSigner: false,
         isWritable: true,
@@ -121,6 +64,8 @@ const transferToBridge = async() => {
     programId: bridgeProgramId,
   });
 
+  console.log('data = ', ix.data.toString('hex'));
+
   let signers = [feePayer];
   const tx = new Transaction();
   tx.add(ix);
@@ -134,15 +79,14 @@ const transferToBridge = async() => {
   console.log("txid = ", txid);
 }
 
-const main = async () => {
-  await transferToBridge();
-  // await createBridgeAccount();
-}
+(async () => {
+  if (process.argv[1] != __filename) {
+    return ;
+  }
 
-main()
-  .then(() => {
-    console.log("Success");
-  })
-  .catch((e) => {
-    console.error(e);
-  });
+  await transferOut();
+})();
+
+export {
+  transferOut
+}
