@@ -32,21 +32,22 @@ const genSecret = async (bridgeProgramIdString: String) => {
     [Buffer.from('SisuBridge', 'utf8')],
     bridgeProgramId,
   );
+  const bridgePda = result[0];
 
   console.log("Creating ATA account for user");
   const userAta = await createTokenAccount(mint.publicKey, feePayer.publicKey);
 
   console.log("Creating ATA account for PDA");
-  const bridgeAta = await createTokenAccount(mint.publicKey, result[0]);
+  const bridgeAta = await createTokenAccount(mint.publicKey, bridgePda);
 
   // Mint token to the owner:
-  await mintToken();
+  await mintToken(mint.publicKey, userAta);
 
   // Approve the bridge for token transfer
-  await approveToken(bridgeProgramId);
+  await approveToken(bridgePda, mint.publicKey, userAta);
 
   // Transfer token to the bridge
-  await transferOut();
+  await transferOut(bridgeProgramId, userAta, bridgeAta);
 
   console.log('=======================================');
   console.log('Copy the following lines into .env file');

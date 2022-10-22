@@ -13,7 +13,8 @@ import {
 } from "./types";
 import { serialize } from "borsh";
 
-const transferOut = async() => {
+const transferOut = async(bridgeProgramId: PublicKey, ownerAssociatedAccount: PublicKey,
+  bridgeAssociatedAccount: PublicKey) => {
   const connection = getConnection();
   const feePayer = await getFeePayer();
 
@@ -60,7 +61,7 @@ const transferOut = async() => {
         isWritable: true,
       },
     ],
-    data: Buffer.from(new Uint8Array([1, ...payload])),
+    data: Buffer.from(new Uint8Array([1, ...payload])), // 1 is the transferOut command
     programId: bridgeProgramId,
   });
 
@@ -84,7 +85,7 @@ const transferOut = async() => {
     return ;
   }
 
-  await transferOut();
+  await transferOut(bridgeProgramId, ownerAssociatedAccount, bridgeAssociatedAccount);
 })();
 
 export {

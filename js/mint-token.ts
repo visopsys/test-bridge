@@ -1,8 +1,8 @@
-import { sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
+import { sendAndConfirmTransaction, PublicKey, Transaction } from "@solana/web3.js";
 import { createMintToCheckedInstruction } from "@solana/spl-token";
 import { getFeePayer, getConnection, mintPubkey, ownerAssociatedAccount } from "./common";
 
-const mintToken = async () => {
+const mintToken = async (mintPubkey: PublicKey, userATA: PublicKey) => {
   // connection
   const connection = getConnection();
   const feePayer = await getFeePayer();
@@ -10,7 +10,7 @@ const mintToken = async () => {
   let tx = new Transaction().add(
     createMintToCheckedInstruction(
       mintPubkey, // mint
-      ownerAssociatedAccount, // receiver (sholud be a token account)
+      userATA, // receiver (sholud be a token account)
       feePayer.publicKey, // mint authority
       1000e8, // amount. if your decimals is 8, you mint 10^8 for 1 token.
       8 // decimals
@@ -29,7 +29,7 @@ const mintToken = async () => {
     return ;
   }
 
-  await mintToken();
+  await mintToken(mintPubkey, ownerAssociatedAccount);
 })();
 
 export {

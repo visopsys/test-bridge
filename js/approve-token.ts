@@ -8,18 +8,11 @@ import {
 } from "@solana/spl-token";
 import { getFeePayer, getConnection, bridgeProgramId, mintPubkey, ownerAssociatedAccount } from "./common";
 
-const approveToken = async(bridgeProgramId: PublicKey) => {
+const approveToken = async(bridgePda: PublicKey, mintPubkey: PublicKey, ownerAta: PublicKey) => {
   const feePayer = await getFeePayer();
-  const result = await PublicKey.findProgramAddress(
-    [Buffer.from('SisuBridge', 'utf8')],
-    bridgeProgramId
-  );
-  console.log("Address and bump = ", result[0].toString(), result[1]);
-  const bridgePda = result[0];
-
   let tx = new Transaction().add(
     createApproveCheckedInstruction(
-      ownerAssociatedAccount, // user associated account
+      ownerAta, // user associated account
       mintPubkey, // mint
       bridgePda, // delegate
       feePayer.publicKey, // owner of token account
@@ -41,8 +34,13 @@ const approveToken = async(bridgeProgramId: PublicKey) => {
     return ;
   }
 
+  const result = await PublicKey.findProgramAddress(
+    [Buffer.from('SisuBridge', 'utf8')],
+    bridgeProgramId
+  );
+
   console.log("Running approve token");
-  await approveToken(bridgeProgramId);
+  await approveToken(result[0], mintPubkey, ownerAssociatedAccount);
 })();
 
 export {
