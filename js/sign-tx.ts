@@ -5,6 +5,8 @@ import {
   PublicKey,
   sendAndConfirmTransaction,
   ConfirmOptions,
+  Signer,
+  SignaturePubkeyPair,
 } from "@solana/web3.js";
 import {
   createInitializeMintInstruction,
@@ -14,6 +16,73 @@ import {
 } from "@solana/spl-token";
 import { getFeePayer, getConnection } from './common';
 import * as ed25519 from '@noble/ed25519';
+
+type Ed25519SecretKey = Uint8Array;
+
+const doSign = (
+  message: Parameters<typeof ed25519.sync.sign>[0],
+  secretKey: Ed25519SecretKey,
+) => ed25519.sync.sign(message, secretKey.slice(0, 32));
+
+const toBuffer = (arr: Buffer | Uint8Array | Array<number>): Buffer => {
+  if (Buffer.isBuffer(arr)) {
+    return arr;
+  } else if (arr instanceof Uint8Array) {
+    return Buffer.from(arr.buffer, arr.byteOffset, arr.byteLength);
+  } else {
+    return Buffer.from(arr);
+  }
+};
+
+const addSignature = function(transaction: Transaction, pubkey: PublicKey, signature: Buffer) {
+  if (!(signature.length === 64)) {
+    throw new Error('Signature length is not 64');
+  }
+
+  const index = transaction.signatures.findIndex(sigpair =>
+    pubkey.equals(sigpair.publicKey),
+  );
+  if (index < 0) {
+    throw new Error(`unknown signer: ${pubkey.toString()}`);
+  }
+
+  transaction.signatures[index].signature = Buffer.from(signature);
+}
+
+const signTransaction = function (transaction: Transaction, accountKeys: PublicKey[], ...signers: Array<Signer>) {
+  if (signers.length === 0) {
+    throw new Error('No signers');
+  }
+
+  // Dedupe signers
+  const seen = new Set();
+  const uniqueSigners = [];
+  for (const signer of signers) {
+    console.log(signer.publicKey);
+
+    const key = signer.publicKey.toString();
+    if (seen.has(key)) {
+      continue;
+    } else {
+      seen.add(key);
+      uniqueSigners.push(signer);
+    }
+  }
+
+  transaction.signatures = uniqueSigners.map(signer => ({
+    signature: null,
+    publicKey: signer.publicKey,
+  }));
+
+  const message = transaction.compileMessage();
+  const signData = message.serialize();
+
+  signers.forEach(signer => {
+    const signature = doSign(signData, signer.secretKey);
+    // this._addSignature(signer.publicKey, toBuffer(signature));
+    addSignature(transaction, signer.publicKey, toBuffer(signature));
+  });
+}
 
 const signMessage = async (bridgeProgramIdString: String) => {
   const connection = getConnection();
@@ -64,12 +133,14 @@ const signMessage = async (bridgeProgramIdString: String) => {
   transaction.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
   transaction.recentBlockhash = latestBlockhash.blockhash;
 
-  transaction.sign(...signers);
+  // transaction.sign(...signers);
+
+  signTransaction(transaction, [feePayer.publicKey, mint.publicKey], ...signers)
+
   if (!transaction.signature) {
     throw new Error('!signature'); // should never happen
   }
 
-  const signature = transaction.signature.toString('base64');
   const wireTransaction = transaction.serialize();
   let txId = await connection.sendRawTransaction(wireTransaction, options);
   console.log("Txid = ", txId);
