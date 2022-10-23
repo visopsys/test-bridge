@@ -9,7 +9,7 @@ import {
 import dotenv from 'dotenv';
 dotenv.config();
 
-const NETWORK = "localhost";
+let NETWORK = "devnet";
 
 const bridgeProgramId = new PublicKey(String(process.env.BRIDGE_PROGRAM_ID!));
 const mintPubkey = new PublicKey(String(process.env.MINT_PUBKEY!));
@@ -31,7 +31,11 @@ const getConnection = () => {
     return new Connection("http://127.0.0.1:8899");
   }
 
-  return new Connection("https://api.devnet.solana.com");
+  if (NETWORK == "devnet") {
+    return new Connection("https://api.devnet.solana.com");
+  }
+
+  return new Connection("http://127.0.0.1:8899");
 };
 
 const getTxUrl = (txid: string) => {

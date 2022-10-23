@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@noble/ed25519": "^1.7.1",
     "@solana/spl-token": "^0.3.5",
     "@solana/web3.js": "^1.31.0",
     "@types/node": "^18.11.3",

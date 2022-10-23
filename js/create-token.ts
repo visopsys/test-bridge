@@ -2,6 +2,7 @@ import {
   Keypair,
   Transaction,
   SystemProgram,
+  sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import {
   createInitializeMintInstruction,
@@ -48,9 +49,12 @@ const createToken = async (secretHex: String) => {
       feePayer.publicKey // freeze authority (you can use `null` to disable it. when you disable it, you can't turn it on again)
     )
   );
-  console.log(
-    `Mint Token txhash: ${await connection.sendTransaction(tx, [feePayer, mint])}`
-  );
+
+  await sendAndConfirmTransaction(connection, tx, [feePayer, mint], {
+    skipPreflight: true,
+    preflightCommitment: "confirmed",
+    commitment: "confirmed",
+  });
 
   return mint.publicKey;
 }

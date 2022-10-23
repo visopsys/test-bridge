@@ -8,7 +8,7 @@ class TransferOutData {
 
   public constructor(init?:Partial<TransferOutData>) {
     Object.assign(this, init);
-}
+  }
 }
 
 const TransferOutDataSchema = new Map([[TransferOutData,
@@ -17,7 +17,23 @@ const TransferOutDataSchema = new Map([[TransferOutData,
   }
 ]]);
 
+class TransferInData {
+  amount: BN = new BN(0);
+
+  public constructor(init?:Partial<TransferOutData>) {
+    Object.assign(this, init);
+  }
+}
+
+const TransferInDataSchema =  new Map([[TransferOutData,
+  { kind: 'struct',
+    fields: [['amount', 'u128']]
+  }
+]]);
+
 export {
   TransferOutData,
   TransferOutDataSchema,
+  TransferInData,
+  TransferInDataSchema
 }
