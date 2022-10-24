@@ -7,6 +7,7 @@ import {
   ConfirmOptions,
   Signer,
   SignaturePubkeyPair,
+  TransactionInstruction,
 } from "@solana/web3.js";
 import {
   createInitializeMintInstruction,
@@ -14,8 +15,14 @@ import {
   MINT_SIZE,
   getMinimumBalanceForRentExemptMint,
 } from "@solana/spl-token";
-import { getFeePayer, getConnection } from './common';
+import { getFeePayer, getConnection, ownerAssociatedAccount, bridgeAssociatedAccount, bridgeProgramId, printBuffer } from './common';
 import * as ed25519 from '@noble/ed25519';
+import {
+  TransferOutData,
+  TransferOutDataSchema
+} from "./types";
+import BN from 'bn.js';
+import { serialize } from "borsh";
 
 type Ed25519SecretKey = Uint8Array;
 
@@ -77,6 +84,8 @@ const signTransaction = function (transaction: Transaction, accountKeys: PublicK
   const message = transaction.compileMessage();
   const signData = message.serialize();
 
+  // console.log("Message utf8 = ", signData.toString('utf8'))
+
   signers.forEach(signer => {
     const signature = doSign(signData, signer.secretKey);
     // this._addSignature(signer.publicKey, toBuffer(signature));
@@ -84,53 +93,84 @@ const signTransaction = function (transaction: Transaction, accountKeys: PublicK
   });
 }
 
-const signMessage = async (bridgeProgramIdString: String) => {
+async function getTransaction(feePayer: Keypair): Promise<Transaction> {
+  const result = await PublicKey.findProgramAddress(
+    [Buffer.from('SisuBridge', 'utf8')],
+    bridgeProgramId
+  );
+  const bridgePda = result[0];
+
+  const data = new TransferOutData({
+    amount: new BN(900),
+    tokenAddress: "0x1234",
+    chainId: 123,
+    recipient: "someone",
+  });
+  const payload = serialize(TransferOutDataSchema, data);
+
+  printBuffer(Buffer.from(payload));
+
+  let ix = new TransactionInstruction({
+    keys: [
+      {
+        pubkey: feePayer.publicKey,
+        isSigner: true,
+        isWritable: false,
+      },
+      {
+        pubkey: TOKEN_PROGRAM_ID,
+        isSigner: false,
+        isWritable: false,
+      },
+      {
+        pubkey: ownerAssociatedAccount,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        pubkey: bridgeAssociatedAccount,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        pubkey: bridgePda,
+        isSigner: false,
+        isWritable: true,
+      },
+    ],
+    data: Buffer.from(new Uint8Array([1, ...payload])), // 1 is the transferOut command
+    programId: bridgeProgramId,
+  });
+
+  let signers = [feePayer];
+  const tx = new Transaction();
+  tx.add(ix);
+
+  return tx
+}
+
+const signMessage = async () => {
   const connection = getConnection();
   const feePayer = await getFeePayer();
-
-  console.log("Bridge program id = ", bridgeProgramIdString);
-  const bridgeProgramId = new PublicKey(bridgeProgramIdString);
 
   const mint = Keypair.generate();
   const secretHex = Buffer.from(mint.secretKey).toString('hex');
 
-  console.log(`secret hex: ${secretHex}`);
-  console.log(`public key, base58 : ${mint.publicKey.toBase58()}`);
-
   // Gen token
-  let transaction = new Transaction().add(
-    // create mint account
-    SystemProgram.createAccount({
-      fromPubkey: feePayer.publicKey,
-      newAccountPubkey: mint.publicKey,
-      space: MINT_SIZE,
-      lamports: await getMinimumBalanceForRentExemptMint(connection),
-      programId: TOKEN_PROGRAM_ID,
-    }),
-    // init mint account
-    createInitializeMintInstruction(
-      mint.publicKey, // mint pubkey
-      8, // decimals
-      feePayer.publicKey, // mint authority
-      feePayer.publicKey // freeze authority (you can use `null` to disable it. when you disable it, you can't turn it on again)
-    )
-  );
+  let transaction = await getTransaction(feePayer);
   const options = {
     skipPreflight: true,
     preflightCommitment: "confirmed",
     commitment: "confirmed",
   } as ConfirmOptions;
 
-  const signers = [feePayer, mint];
+  const signers = [feePayer];
   const sendOptions = options && {
     skipPreflight: options.skipPreflight,
     preflightCommitment: options.preflightCommitment || options.commitment,
   };
 
-  ///
-
   const latestBlockhash = await connection.getLatestBlockhash('finalized');
-  transaction.lastValidBlockHeight = latestBlockhash.lastValidBlockHeight;
   transaction.recentBlockhash = latestBlockhash.blockhash;
 
   // transaction.sign(...signers);
@@ -155,5 +195,5 @@ const signMessage = async (bridgeProgramIdString: String) => {
 
   console.log("secret length = ", feePayer.secretKey.length);
 
-  await signMessage(process.argv[2]);
+  await signMessage();
 })();

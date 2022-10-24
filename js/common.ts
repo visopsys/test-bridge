@@ -26,7 +26,7 @@ const getFeePayer = async () => {
   return feePayer;
 };
 
-const getConnection = () => {
+const getConnection = (): Connection => {
   if (NETWORK == "localhost") {
     return new Connection("http://127.0.0.1:8899");
   }
@@ -63,6 +63,19 @@ async function accountExisted(connection: Connection, pubkey: PublicKey): Promis
   return false;
 }
 
+function printBuffer(data: Buffer) {
+  var arr = Array.prototype.slice.call(data, 0)
+  let s = "[";
+  for (let i = 0; i < arr.length; i++) {
+    s = s + arr[i];
+    if (i < arr.length - 1) {
+      s = s + " ";
+    }
+  }
+  s += "]";
+  console.log(s);
+}
+
 export {
   getFeePayer,
   getConnection,
@@ -73,4 +86,5 @@ export {
   bridgeAssociatedAccount,
   sleep,
   accountExisted,
+  printBuffer,
 }
