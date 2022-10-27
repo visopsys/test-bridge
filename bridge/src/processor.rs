@@ -14,7 +14,7 @@ use solana_program::{
 };
 
 use crate::error::BridgeError;
-use crate::state::{BridgeData, BridgeInstruction, TransferOutData};
+use crate::state::{BridgeData, BridgeInstruction, TransferIn, TransferOutData};
 pub struct Processor {}
 
 impl Processor {
@@ -47,6 +47,10 @@ impl Processor {
             BridgeInstruction::TransferIn => {
                 return Processor::transfer_in(accounts_iter, data_vec);
             }
+
+            BridgeInstruction::AddSpender => Err(BridgeError::NotImplemented.into()),
+            BridgeInstruction::RemoveSpender => Err(BridgeError::NotImplemented.into()),
+            BridgeInstruction::ChangeAdmin => Err(BridgeError::NotImplemented.into()),
         }
     }
 
@@ -65,8 +69,8 @@ impl Processor {
             &system_instruction::create_account(
                 user.key,
                 bridge.key,
-                Rent::get()?.minimum_balance(1),
-                1,
+                Rent::get()?.minimum_balance(98),
+                98,
                 &program_id,
             ),
             // making sure downstream program has all necessary data
@@ -74,10 +78,16 @@ impl Processor {
             &[&[b"SisuBridge", &[bump]]], // signature
         )?;
 
-        let mut bridge_state = BridgeData::try_from_slice(&bridge.data.borrow())?;
-        bridge_state.bump = bump;
-        bridge_state.admins[0] = *user.key;
-        bridge_state.admin_index = 0;
+        msg!("Admin = {:?}", *user.key);
+
+        let bridge_state = BridgeData {
+            bump,
+            admins: *user.key,
+            spenders: [*user.key, *user.key],
+            admin_index: 0,
+        };
+
+        msg!("bridge.data = {:?}", bridge_state);
 
         bridge_state.serialize(&mut *bridge.data.borrow_mut())?;
 
@@ -99,6 +109,8 @@ impl Processor {
             bridge_associated_token.key
         );
 
+        assert!(user.is_signer, "transfer_out: User must sign the message");
+
         // Transfer token to this bridge account.
         invoke_signed(
             &spl_token::instruction::transfer(
@@ -117,7 +129,6 @@ impl Processor {
             ],
             &[&[b"SisuBridge", &[bridge_state.bump]]],
         )?;
-        msg!("Invokation is successful");
 
         // Payload
         let payload = TransferOutData::try_from_slice(&data_vec[1..]).unwrap();
@@ -128,26 +139,24 @@ impl Processor {
 
     fn transfer_in(accounts_iter: &mut Iter<AccountInfo>, data_vec: Vec<u8>) -> ProgramResult {
         // Authority checking. Make sure the caller is the spender or owner of this bridge pda.
-        let bridge_admin = next_account_info(accounts_iter)?;
-        let token_program_ai = next_account_info(accounts_iter)?;
-        let mint_ai = next_account_info(accounts_iter)?;
-
         let user_associated_token = next_account_info(accounts_iter)?;
-        let bridge_associated_token = next_account_info(accounts_iter)?;
+        let token_program_ai = next_account_info(accounts_iter)?;
+        let bridge_spender = next_account_info(accounts_iter)?;
         let bridge_pda = next_account_info(accounts_iter)?;
+        let bridge_associated_token = next_account_info(accounts_iter)?;
 
         let bridge_state = BridgeData::try_from_slice(&bridge_pda.data.borrow())?;
 
         // Verify that user is one of the spenders
         assert!(
-            bridge_admin.is_signer,
+            bridge_spender.is_signer,
             "transfer_in: User must sign the message"
         );
 
-        // Check that user is one of the admin
+        // Check that user is one of the spenders
         let mut found = false;
-        for admin in bridge_state.admins {
-            if admin == *bridge_admin.key {
+        for spender in bridge_state.spenders {
+            if spender == *bridge_spender.key {
                 found = true;
                 break;
             }
@@ -155,6 +164,9 @@ impl Processor {
         if found == false {
             return Err(BridgeError::NotAnAdmin.into());
         }
+
+        // Deserialize transfer in amount.
+        let transfer_in = TransferIn::try_from_slice(&data_vec[1..]).unwrap();
 
         // Transfer token from bridge to user.
         invoke_signed(
@@ -164,7 +176,7 @@ impl Processor {
                 user_associated_token.key,
                 bridge_pda.key,
                 &[bridge_pda.key],
-                1_000,
+                transfer_in.amount,
             )?,
             &[
                 user_associated_token.clone(),

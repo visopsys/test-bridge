@@ -3,6 +3,9 @@ use thiserror::Error;
 
 #[derive(Error, Debug, Copy, Clone, PartialEq)]
 pub enum BridgeError {
+    #[error("Not implemented.")]
+    NotImplemented,
+
     #[error("Not a bridge admin.")]
     NotAnAdmin,
 }
