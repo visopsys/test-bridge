@@ -13,7 +13,7 @@ class TransferOutData {
 
 const TransferOutDataSchema = new Map([[TransferOutData,
   { kind: 'struct',
-    fields: [['amount', 'u128'], ['tokenAddress', 'string'], ['chainId', 'u64'], ['recipient', 'string']]
+    fields: [['amount', 'u64'], ['tokenAddress', 'string'], ['chainId', 'u64'], ['recipient', 'string']]
   }
 ]]);
 

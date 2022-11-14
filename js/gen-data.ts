@@ -15,6 +15,7 @@ const genSecret = async (bridgeProgramIdString: String) => {
   const bridgeProgramId = new PublicKey(bridgeProgramIdString);
 
   const mint = Keypair.generate();
+  console.log("mint.secretKey = ", mint.secretKey);
   const secretHex = Buffer.from(mint.secretKey).toString('hex');
 
   console.log(`secret hex: ${secretHex}`);
@@ -23,8 +24,12 @@ const genSecret = async (bridgeProgramIdString: String) => {
   // Gen token
   await createToken(secretHex);
 
+  console.log("Creating bridge account ....");
+
   // Create bridge pda
   await createBridgeAccount();
+
+  console.log("Done bridge account ....");
 
   // Gen ATA
   const feePayer = await getFeePayer();
@@ -47,7 +52,7 @@ const genSecret = async (bridgeProgramIdString: String) => {
   await approveToken(bridgePda, mint.publicKey, userAta);
 
   // Transfer token to the bridge
-  await transferOut(bridgeProgramId, userAta, bridgeAta);
+  await transferOut(bridgeProgramId, mint.publicKey, userAta, bridgeAta);
 
   console.log('=======================================');
   console.log('Copy the following lines into .env file');

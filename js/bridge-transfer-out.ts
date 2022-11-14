@@ -13,8 +13,8 @@ import {
 } from "./types";
 import { serialize } from "borsh";
 
-const transferOut = async(bridgeProgramId: PublicKey, ownerAssociatedAccount: PublicKey,
-  bridgeAssociatedAccount: PublicKey) => {
+const transferOut = async(bridgeProgramId: PublicKey, tokenPubkey: PublicKey, ownerAta: PublicKey,
+  bridgeAta: PublicKey) => {
   const connection = getConnection();
   const feePayer = await getFeePayer();
 
@@ -25,11 +25,13 @@ const transferOut = async(bridgeProgramId: PublicKey, ownerAssociatedAccount: Pu
   console.log("Address and bump = ", result[0].toString(), result[1]);
   const bridgePda = result[0];
 
+  console.log("Bridge ATA = ", bridgeAta.toString());
+
   const data = new TransferOutData({
-    amount: new BN(900),
-    tokenAddress: "0x1234",
-    chainId: 123,
-    recipient: "someone",
+    amount: new BN(10),
+    tokenAddress: tokenPubkey.toString(),
+    chainId: 189985, // ganache1
+    recipient: "0x8095f5b69F2970f38DC6eBD2682ed71E4939f988",
   });
   const payload = serialize(TransferOutDataSchema, data);
 
@@ -46,12 +48,12 @@ const transferOut = async(bridgeProgramId: PublicKey, ownerAssociatedAccount: Pu
         isWritable: false,
       },
       {
-        pubkey: ownerAssociatedAccount,
+        pubkey: ownerAta,
         isSigner: false,
         isWritable: true,
       },
       {
-        pubkey: bridgeAssociatedAccount,
+        pubkey: bridgeAta,
         isSigner: false,
         isWritable: true,
       },
@@ -61,7 +63,7 @@ const transferOut = async(bridgeProgramId: PublicKey, ownerAssociatedAccount: Pu
         isWritable: true,
       },
     ],
-    data: Buffer.from(new Uint8Array([1, ...payload])), // 1 is the transferOut command
+    data: Buffer.from(new Uint8Array([1, ...payload])), // 1 is thcd ../se transferOut command
     programId: bridgeProgramId,
   });
 
@@ -85,7 +87,7 @@ const transferOut = async(bridgeProgramId: PublicKey, ownerAssociatedAccount: Pu
     return ;
   }
 
-  await transferOut(bridgeProgramId, ownerAssociatedAccount, bridgeAssociatedAccount);
+  await transferOut(bridgeProgramId, mintPubkey, ownerAssociatedAccount, bridgeAssociatedAccount);
 })();
 
 export {

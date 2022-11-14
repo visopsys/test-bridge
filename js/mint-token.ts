@@ -12,7 +12,7 @@ const mintToken = async (mintPubkey: PublicKey, userATA: PublicKey) => {
       mintPubkey, // mint
       userATA, // receiver (sholud be a token account)
       feePayer.publicKey, // mint authority
-      1000e8, // amount. if your decimals is 8, you mint 10^8 for 1 token.
+      1000000e8, // amount. if your decimals is 8, you mint 10^8 for 1 token.
       8 // decimals
     )
   );
