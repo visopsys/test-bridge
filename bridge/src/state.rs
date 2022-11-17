@@ -12,16 +12,17 @@ pub enum BridgeInstruction {
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
-pub struct BridgeData {
+pub struct BridgeStateV0 {
+    pub version: u8,
     pub bump: u8,              // 1 byte
-    pub admins: Pubkey,        // 32
-    pub spenders: [Pubkey; 2], // * 2 bytes
-    pub admin_index: u8,       // 1 byte
+    pub admin: Pubkey,         // 32
+    pub spenders: [Pubkey; 2], // 32 * 2 bytes
+    pub spender_index: u8,     // 1 byte
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct TransferOutData {
-    pub amount: u128,
+    pub amount: u64,
     pub token_address: String,
     pub chain_id: u64,
     pub recipient: String,
@@ -30,6 +31,11 @@ pub struct TransferOutData {
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct TransferIn {
     pub amount: u64,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
+pub struct AddSpenderData {
+    pub spender: Pubkey, // 32 bytes
 }
 
 #[test]

@@ -1,5 +1,4 @@
 use core::slice::Iter;
-use std::str::FromStr;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{
@@ -9,17 +8,17 @@ use solana_program::{
     program::invoke_signed,
     program_error::ProgramError,
     pubkey::Pubkey,
-    system_instruction,
+    system_instruction, system_program,
     sysvar::{rent::Rent, Sysvar},
 };
 
 use crate::error::BridgeError;
-use crate::state::{BridgeData, BridgeInstruction, TransferIn, TransferOutData};
+use crate::state::{AddSpenderData, BridgeInstruction, BridgeStateV0, TransferIn, TransferOutData};
 pub struct Processor {}
 
 impl Processor {
     pub fn process_instruction(
-        _program_id: &Pubkey,
+        program_id: &Pubkey,
         accounts: &[AccountInfo],
         instruction_data: &[u8],
     ) -> ProgramResult {
@@ -29,15 +28,11 @@ impl Processor {
         let instruction = BridgeInstruction::try_from_slice(&[data_vec[0]])
             .map_err(|_| ProgramError::InvalidInstructionData)?;
 
-        let program_id = Pubkey::from_str("HguMTvmDfspHuEWycDSP1XtVQJi47hVNAyLbFEf2EJEQ").unwrap();
-        let (bridge_key, bump) = Pubkey::find_program_address(&[b"SisuBridge"], &program_id);
-        msg!("bridge_key, bump = {:?}, {:?}", bridge_key, bump);
-
         let accounts_iter = &mut accounts.iter();
 
         match instruction {
             BridgeInstruction::Initialize => {
-                return Processor::initialize(accounts_iter, program_id, bump);
+                return Processor::initialize(accounts_iter, program_id);
             }
 
             BridgeInstruction::TransferOut => {
@@ -48,48 +43,58 @@ impl Processor {
                 return Processor::transfer_in(accounts_iter, data_vec);
             }
 
-            BridgeInstruction::AddSpender => Err(BridgeError::NotImplemented.into()),
+            BridgeInstruction::AddSpender => {
+                return Processor::add_spender(accounts_iter, data_vec);
+            }
+
             BridgeInstruction::RemoveSpender => Err(BridgeError::NotImplemented.into()),
             BridgeInstruction::ChangeAdmin => Err(BridgeError::NotImplemented.into()),
         }
     }
 
-    fn initialize(
-        accounts_iter: &mut Iter<AccountInfo>,
-        program_id: Pubkey,
-        bump: u8,
-    ) -> ProgramResult {
+    fn initialize(accounts_iter: &mut Iter<AccountInfo>, program_id: &Pubkey) -> ProgramResult {
         let user = next_account_info(accounts_iter)?;
-        let bridge = next_account_info(accounts_iter)?;
-        let system_program = next_account_info(accounts_iter)?;
+        let bridge_pda = next_account_info(accounts_iter)?;
+        let sys_program = next_account_info(accounts_iter)?;
 
+        let seed_string = b"SisuBridge";
+
+        // Verification
         assert!(user.is_signer, "initialize: User must sign the message");
+        assert!(
+            bridge_pda.is_writable,
+            "initialize: Bridge pda must be writable"
+        );
+        assert_eq!(bridge_pda.owner, &system_program::ID);
+        assert!(system_program::check_id(sys_program.key));
 
+        // Check that the bridge pda matches the expected pda.
+        let (calculated_pda, bump) = Pubkey::find_program_address(&[seed_string], program_id);
+        assert_eq!(bridge_pda.key, &calculated_pda);
+
+        // Create the pda account
         invoke_signed(
             &system_instruction::create_account(
                 user.key,
-                bridge.key,
-                Rent::get()?.minimum_balance(98),
-                98,
+                bridge_pda.key,
+                Rent::get()?.minimum_balance(99),
+                99,
                 &program_id,
             ),
             // making sure downstream program has all necessary data
-            &[user.clone(), bridge.clone(), system_program.clone()],
-            &[&[b"SisuBridge", &[bump]]], // signature
+            &[user.clone(), bridge_pda.clone(), sys_program.clone()],
+            &[&[seed_string, &[bump]]], // signature
         )?;
 
-        msg!("Admin = {:?}", *user.key);
-
-        let bridge_state = BridgeData {
+        let bridge_state = BridgeStateV0 {
+            version: 0,
             bump,
-            admins: *user.key,
+            admin: *user.key,
             spenders: [*user.key, *user.key],
-            admin_index: 0,
+            spender_index: 0,
         };
 
-        msg!("bridge.data = {:?}", bridge_state);
-
-        bridge_state.serialize(&mut *bridge.data.borrow_mut())?;
+        bridge_state.serialize(&mut *bridge_pda.data.borrow_mut())?;
 
         Ok(())
     }
@@ -101,17 +106,25 @@ impl Processor {
         let bridge_associated_token = next_account_info(accounts_iter)?;
         let bridge_pda = next_account_info(accounts_iter)?;
 
-        let bridge_state = BridgeData::try_from_slice(&bridge_pda.data.borrow())?;
-
         msg!(
-            "user, destination key = {:?}, {:?}",
-            user.key,
+            "userATA = {:?}, bridgeAta = {:?}",
+            user_associated_token.key,
             bridge_associated_token.key
         );
 
+        // Validation
         assert!(user.is_signer, "transfer_out: User must sign the message");
 
+        // Payload
+        let payload = TransferOutData::try_from_slice(&data_vec[1..]).unwrap();
+        msg!(
+            "Recipient = {:?} -- Amount = {:?}",
+            payload.recipient,
+            payload.amount
+        );
+
         // Transfer token to this bridge account.
+        let bridge_state = BridgeStateV0::try_from_slice(&bridge_pda.data.borrow())?;
         invoke_signed(
             &spl_token::instruction::transfer(
                 &spl_token::ID,
@@ -119,7 +132,7 @@ impl Processor {
                 bridge_associated_token.key,
                 bridge_pda.key,
                 &[bridge_pda.key],
-                1_000,
+                payload.amount,
             )?,
             &[
                 user_associated_token.clone(),
@@ -129,10 +142,6 @@ impl Processor {
             ],
             &[&[b"SisuBridge", &[bridge_state.bump]]],
         )?;
-
-        // Payload
-        let payload = TransferOutData::try_from_slice(&data_vec[1..]).unwrap();
-        msg!("Recipient = {:?}", payload.recipient);
 
         Ok(())
     }
@@ -145,7 +154,7 @@ impl Processor {
         let bridge_pda = next_account_info(accounts_iter)?;
         let bridge_associated_token = next_account_info(accounts_iter)?;
 
-        let bridge_state = BridgeData::try_from_slice(&bridge_pda.data.borrow())?;
+        let bridge_state = BridgeStateV0::try_from_slice(&bridge_pda.data.borrow())?;
 
         // Verify that user is one of the spenders
         assert!(
@@ -186,6 +195,32 @@ impl Processor {
             ],
             &[&[b"SisuBridge", &[bridge_state.bump]]],
         )?;
+
+        Ok(())
+    }
+
+    fn add_spender(accounts_iter: &mut Iter<AccountInfo>, data_vec: Vec<u8>) -> ProgramResult {
+        let user = next_account_info(accounts_iter)?;
+        let bridge_pda = next_account_info(accounts_iter)?;
+        assert!(user.is_signer, "add_spender: User must sign the message");
+
+        // Get the bridge state.
+        let mut bridge_state = BridgeStateV0::try_from_slice(&bridge_pda.data.borrow())?;
+
+        // Validation
+        assert_eq!(
+            user.key, &bridge_state.admin,
+            "add_spender: user is not an admin"
+        );
+        assert_eq!(bridge_state.spenders.len(), 2);
+
+        // Update spender
+        let new_spender = AddSpenderData::try_from_slice(&data_vec).unwrap().spender;
+        let index = bridge_state.spender_index;
+        bridge_state.spenders[((index + 1) % 2) as usize] = new_spender;
+
+        // Serialize back to the bridge pda.
+        bridge_state.serialize(&mut *bridge_pda.data.borrow_mut())?;
 
         Ok(())
     }
