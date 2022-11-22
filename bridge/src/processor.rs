@@ -2,7 +2,7 @@ use core::slice::Iter;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{
-    account_info::{next_account_info, AccountInfo},
+    account_info::{AccountInfo, next_account_info},
     entrypoint::ProgramResult,
     msg,
     program::invoke_signed,
@@ -11,13 +11,12 @@ use solana_program::{
     system_instruction, system_program,
     sysvar::{rent::Rent, Sysvar},
 };
-use solana_program::system_instruction::transfer;
 
 use crate::error::BridgeError;
 use crate::state::{
-    AddSpenderData, BridgeInstruction, BridgeStateV0, TransferInData, TransferOutData,
-    TransferInIx,
+    AddSpenderData, BridgeInstruction, BridgeStateV0, TransferInIx, TransferOutData,
 };
+
 pub struct Processor {}
 
 impl Processor {

@@ -55,10 +55,11 @@ impl TransferInIx {
 
 #[cfg(test)]
 mod test {
-    use crate::state::TransferInData;
-    use crate::state::TransferOutData;
     use borsh::{BorshDeserialize, BorshSerialize};
     use solana_program::pubkey::Pubkey;
+
+    use crate::state::TransferInData;
+    use crate::state::TransferOutData;
 
     #[test]
     fn test_serialize_transfer_in() {

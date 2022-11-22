@@ -15,8 +15,7 @@ use {
         transport::TransportError,
     },
     spl_token::{
-        id, instruction,
-        instruction::TokenInstruction,
+        instruction, instruction::TokenInstruction,
         state::{Account, Mint},
     },
     spl_associated_token_account::{
@@ -25,24 +24,16 @@ use {
     }
 };
 
-pub fn get_ata_program_id() -> Pubkey {
-    return Pubkey::from_str("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL").unwrap();
-}
-
-pub fn get_token_program_id() -> Pubkey {
-    return Pubkey::from_str("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA").unwrap();
-}
-
 pub async fn create_associated_account(
     banks_client: &mut BanksClient,
     recent_blockhash: Hash,
     payer: &Keypair,
     owner: &Pubkey,
     mint: &Pubkey,
-) -> Result<(Pubkey), TransportError> {
+) -> Result<Pubkey, TransportError> {
     let ata_account  = get_associated_token_address(&owner, &mint);
 
-    let ix = create_associated_token_account(&payer.pubkey(), &owner, &mint, &get_token_program_id());
+    let ix = create_associated_token_account(&payer.pubkey(), &owner, &mint, &spl_token::id());
     let mut transaction = Transaction::new_with_payer(
         &[
             ix
@@ -52,7 +43,7 @@ pub async fn create_associated_account(
 
     transaction.sign(&[payer], recent_blockhash);
     banks_client.process_transaction(transaction).await?;
-    Ok((ata_account))
+    Ok(ata_account)
 }
 
 pub async fn create_mint(
@@ -72,9 +63,9 @@ pub async fn create_mint(
                 &pool_mint.pubkey(),
                 mint_rent,
                 Mint::LEN as u64,
-                &get_token_program_id(),
+                &spl_token::id(),
             ),
-            instruction::initialize_mint(&get_token_program_id(), &pool_mint.pubkey(),
+            instruction::initialize_mint(&spl_token::id(), &pool_mint.pubkey(),
                                          &payer.pubkey(), None, decimals)
                 .unwrap(),
         ],
@@ -97,7 +88,7 @@ pub async fn mint_to(
 ) -> Result<(), TransportError> {
     let transaction = Transaction::new_signed_with_payer(
         &[
-            instruction::mint_to(&get_token_program_id(), mint, account, &mint_authority.pubkey(), &[], amount)
+            instruction::mint_to(&spl_token::id(), mint, account, &mint_authority.pubkey(), &[], amount)
                 .unwrap(),
         ],
         Some(&payer.pubkey()),
