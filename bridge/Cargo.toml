@@ -8,6 +8,8 @@ borsh = "0.9"
 solana-program = "=1.14.4"
 thiserror = "1.0"
 spl-token = { version="3.5.0", features = [ "no-entrypoint" ] }
+spl-token-2022 = { version = "=0.4.2", features = ["no-entrypoint"] }
+spl-associated-token-account = "1.0.2"
 bigint = "4.4.3"
 bs58 = "0.4.0"
 
@@ -16,6 +18,9 @@ assert_matches = "1.4.0"
 solana-logger = "=1.14.4"
 solana-program-test = "=1.14.4"
 solana-sdk = "=1.14.4"
+
+[features]
+test-bpf = []
 
 [lib]
 crate-type = ["cdylib", "lib"]

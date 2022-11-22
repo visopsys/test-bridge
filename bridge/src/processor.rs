@@ -13,7 +13,9 @@ use solana_program::{
 };
 
 use crate::error::BridgeError;
-use crate::state::{AddSpenderData, BridgeInstruction, BridgeStateV0, TransferIn, TransferOutData};
+use crate::state::{
+    AddSpenderData, BridgeInstruction, BridgeStateV0, TransferInData, TransferOutData,
+};
 pub struct Processor {}
 
 impl Processor {
@@ -148,11 +150,11 @@ impl Processor {
 
     fn transfer_in(accounts_iter: &mut Iter<AccountInfo>, data_vec: Vec<u8>) -> ProgramResult {
         // Authority checking. Make sure the caller is the spender or owner of this bridge pda.
-        let user_associated_token = next_account_info(accounts_iter)?;
-        let token_program_ai = next_account_info(accounts_iter)?;
         let bridge_spender = next_account_info(accounts_iter)?;
+        let token_program_ai = next_account_info(accounts_iter)?;
         let bridge_pda = next_account_info(accounts_iter)?;
-        let bridge_associated_token = next_account_info(accounts_iter)?;
+        let user_ata = next_account_info(accounts_iter)?;
+        let bridge_ata = next_account_info(accounts_iter)?;
 
         let bridge_state = BridgeStateV0::try_from_slice(&bridge_pda.data.borrow())?;
 
@@ -174,22 +176,28 @@ impl Processor {
             return Err(BridgeError::NotAnAdmin.into());
         }
 
+        // Check that the bridge pda is the owner of the bridgeAta
+        assert_eq!(
+            bridge_ata.owner, bridge_pda.key,
+            "transfer_in: Bridge pda must be the owner of the bridge ata"
+        );
+
         // Deserialize transfer in amount.
-        let transfer_in = TransferIn::try_from_slice(&data_vec[1..]).unwrap();
+        let transfer_in = TransferInData::try_from_slice(&data_vec[1..]).unwrap();
 
         // Transfer token from bridge to user.
         invoke_signed(
             &spl_token::instruction::transfer(
                 &spl_token::ID,
-                bridge_associated_token.key,
-                user_associated_token.key,
+                bridge_ata.key,
+                user_ata.key,
                 bridge_pda.key,
                 &[bridge_pda.key],
                 transfer_in.amount,
             )?,
             &[
-                user_associated_token.clone(),
-                bridge_associated_token.clone(),
+                user_ata.clone(),
+                bridge_ata.clone(),
                 bridge_pda.clone(),
                 token_program_ai.clone(),
             ],
@@ -223,55 +231,5 @@ impl Processor {
         bridge_state.serialize(&mut *bridge_pda.data.borrow_mut())?;
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use {
-        super::*,
-        assert_matches::*,
-        solana_program::instruction::{AccountMeta, Instruction},
-        solana_program_test::*,
-        solana_sdk::{signature::Signer, transaction::Transaction},
-    };
-
-    #[tokio::test]
-    async fn test_initialize() {
-        let program_id = Pubkey::new_unique();
-        let seed_string = b"SisuBridge";
-        let (bridge_pda, _) = Pubkey::find_program_address(&[seed_string], &program_id);
-
-        let (mut banks_client, payer, recent_blockhash) = ProgramTest::new(
-            "sisu_bridge",
-            program_id,
-            processor!(Processor::process_instruction),
-        )
-        .start()
-        .await;
-
-        let data = BridgeInstruction::try_to_vec(&BridgeInstruction::Initialize).unwrap();
-        let mut transaction = Transaction::new_with_payer(
-            &[Instruction {
-                program_id,
-                accounts: vec![
-                    AccountMeta::new(payer.pubkey(), false),
-                    AccountMeta::new(bridge_pda, false),
-                    AccountMeta::new(system_program::id(), false),
-                ],
-                data,
-            }],
-            Some(&payer.pubkey()),
-        );
-        transaction.sign(&[&payer], recent_blockhash);
-        assert_matches!(banks_client.process_transaction(transaction).await, Ok(()));
-
-        // Make sure the new
-        assert_matches!(banks_client.get_account(bridge_pda).await, Ok(_));
-
-        let account = banks_client.get_account(bridge_pda).await.unwrap().unwrap();
-
-        let state = BridgeStateV0::try_from_slice(account.data.as_slice()).unwrap();
-        assert_eq!(payer.pubkey(), state.admin);
     }
 }
