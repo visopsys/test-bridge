@@ -20,6 +20,7 @@ use {
         state::{Account, Mint},
     },
     spl_associated_token_account::{
+        get_associated_token_address,
         instruction::create_associated_token_account,
     }
 };
@@ -32,11 +33,32 @@ pub fn get_token_program_id() -> Pubkey {
     return Pubkey::from_str("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA").unwrap();
 }
 
+pub async fn create_associated_account(
+    banks_client: &mut BanksClient,
+    recent_blockhash: Hash,
+    payer: &Keypair,
+    owner: &Pubkey,
+    mint: &Pubkey,
+) -> Result<(Pubkey), TransportError> {
+    let ata_account  = get_associated_token_address(&owner, &mint);
+
+    let ix = create_associated_token_account(&payer.pubkey(), &owner, &mint, &get_token_program_id());
+    let mut transaction = Transaction::new_with_payer(
+        &[
+            ix
+        ],
+        Some(&payer.pubkey()),
+    );
+
+    transaction.sign(&[payer], recent_blockhash);
+    banks_client.process_transaction(transaction).await?;
+    Ok((ata_account))
+}
 
 pub async fn create_mint(
     banks_client: &mut BanksClient,
-    payer: &Keypair,
     recent_blockhash: Hash,
+    payer: &Keypair,
     pool_mint: &Keypair,
     decimals: u8,
 ) -> Result<(), TransportError> {
@@ -64,83 +86,42 @@ pub async fn create_mint(
     Ok(())
 }
 
-pub fn get_token_ata(mint: Pubkey, owner: Pubkey) -> Pubkey {
-    let (ata, _) = Pubkey::find_program_address(
-        &[owner.as_ref(), get_token_program_id().as_ref(), mint.as_ref()],
-        &get_ata_program_id()
-    );
-    return ata;
-}
-
-pub async fn create_associated_account(
-    banks_client: &mut BanksClient,
-    recent_blockhash: Hash,
-    payer: &Keypair,
-    owner: &Pubkey,
-    mint: &Pubkey,
-) -> Result<(), TransportError> {
-    let ix = create_associated_token_account(&payer.pubkey(), &owner, &mint, &get_token_program_id());
-    let mut transaction = Transaction::new_with_payer(
-        &[
-            ix
-        ],
-        Some(&payer.pubkey()),
-    );
-
-    transaction.sign(&[payer], recent_blockhash);
-    banks_client.process_transaction(transaction).await?;
-    Ok(())
-}
-
 pub async fn mint_to(
     banks_client: &mut BanksClient,
-    payer: &Keypair,
     recent_blockhash: Hash,
+    payer: &Keypair,
     mint: &Pubkey,
     account: &Pubkey,
-    owner: &Pubkey,
-    amount: u64,
-) -> Result<(), TransportError> {
-    let ix = instruction::mint_to_checked(
-        &get_token_program_id(),
-        mint,
-        account,
-        owner,
-        &[&payer.pubkey()],
-        amount,
-        8,
-    ).unwrap();
-
-    let mut transaction = Transaction::new_with_payer(
-        &[
-            ix
-        ],
-        Some(&payer.pubkey()),
-    );
-
-    transaction.sign(&[payer], recent_blockhash);
-    banks_client.process_transaction(transaction).await.unwrap();
-    Ok(())
-}
-
-pub async fn transfer(
-    banks_client: &mut BanksClient,
-    payer: &Keypair,
-    recent_blockhash: Hash,
-    source: &Pubkey,
-    destination: &Pubkey,
-    authority: &Keypair,
+    mint_authority: &Keypair,
     amount: u64,
 ) -> Result<(), TransportError> {
     let transaction = Transaction::new_signed_with_payer(
         &[
-            instruction::transfer(&id(), source, destination, &authority.pubkey(), &[], amount)
+            instruction::mint_to(&get_token_program_id(), mint, account, &mint_authority.pubkey(), &[], amount)
                 .unwrap(),
         ],
         Some(&payer.pubkey()),
-        &[payer, authority],
+        &[payer, mint_authority],
         recent_blockhash,
     );
+    banks_client.process_transaction(transaction).await?;
+    Ok(())
+}
+
+pub async fn execute_ix(
+    banks_client: &mut BanksClient,
+    recent_blockhash: Hash,
+    payer: &Keypair,
+    ix: Instruction,
+) -> Result<(), TransportError> {
+    let mut transaction = Transaction::new_with_payer(
+        &[
+            ix
+        ],
+        Some(&payer.pubkey()),
+    );
+
+    transaction.sign(&[payer], recent_blockhash);
     banks_client.process_transaction(transaction).await?;
     Ok(())
 }

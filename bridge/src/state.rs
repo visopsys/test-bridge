@@ -30,20 +30,29 @@ pub struct TransferOutData {
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct TransferInData {
-    pub amount: u64,
-    pub recipients: Vec<Pubkey>,
+    pub amounts: Vec<u64>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct TransferInIx {
     pub bridge_ix: BridgeInstruction,
-    pub data: TransferInData,
+    pub transfer_data: TransferInData,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub struct AddSpenderData {
     pub spender: Pubkey, // 32 bytes
 }
+
+impl TransferInIx {
+    pub fn from_data(data: TransferInData) -> TransferInIx {
+        return TransferInIx{
+            bridge_ix: BridgeInstruction::TransferIn,
+            transfer_data: data,
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::state::TransferInData;
@@ -53,20 +62,13 @@ mod test {
 
     #[test]
     fn test_serialize_transfer_in() {
-        let accounts = &vec![
-            Pubkey::new_unique(),
-            Pubkey::new_unique(),
-            Pubkey::new_unique(),
-        ];
-
         let transfer_in = TransferInData {
-            amount: 0,
-            recipients: accounts.clone(),
+            amounts: vec![1, 2, 3],
         };
 
         let encoded_a = transfer_in.try_to_vec().unwrap();
         let decoded_a = TransferInData::try_from_slice(&encoded_a).unwrap();
-        assert_eq!(accounts.clone(), decoded_a.recipients);
+        assert_eq!(transfer_in.amounts, decoded_a.amounts);
     }
 
     #[test]

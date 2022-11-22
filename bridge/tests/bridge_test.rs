@@ -1,7 +1,6 @@
 #![cfg(feature = "test-bpf")]
 
 mod token_action;
-mod action;
 use std::{print, println};
 use {
     borsh::{BorshDeserialize, BorshSerialize},
@@ -20,7 +19,7 @@ use {
         program_error::ProgramError,
         pubkey::Pubkey,
         system_instruction, system_program,
-        sysvar::{rent::Rent, Sysvar},
+        sysvar::{rent::Rent},
     },
     solana_program_test::*,
     solana_sdk::{
@@ -28,18 +27,22 @@ use {
         transport::TransportError,
     },
     spl_token::{id, instruction, state::Mint, state::Account as SplTokenAccount},
+    spl_associated_token_account::{
+        get_associated_token_address,
+    }
 };
+use sisu_bridge::state;
 
-const TRANSFER_AMOUNT: u64 = 1_000_000_000_000_000;
+const INIT_AMOUNT: u64 = 1_000_000_000_000_000;
 
-async fn initialize() -> (BanksClient, Keypair, Pubkey, Hash) {
-    let program_id = Pubkey::new_unique();
+async fn initialize() -> (BanksClient, Keypair, Pubkey, Pubkey, Hash) {
+    let bridge_program_id = Pubkey::new_unique();
     let seed_string = b"SisuBridge";
-    let (bridge_pda, _) = Pubkey::find_program_address(&[seed_string], &program_id);
+    let (bridge_pda, _) = Pubkey::find_program_address(&[seed_string], &bridge_program_id);
 
     let (mut banks_client, payer, recent_blockhash) = ProgramTest::new(
         "sisu_bridge",
-        program_id,
+        bridge_program_id,
         processor!(Processor::process_instruction),
     )
     .start()
@@ -48,7 +51,7 @@ async fn initialize() -> (BanksClient, Keypair, Pubkey, Hash) {
     let data = BridgeInstruction::try_to_vec(&BridgeInstruction::Initialize).unwrap();
     let mut transaction = Transaction::new_with_payer(
         &[Instruction {
-            program_id,
+            program_id: bridge_program_id,
             accounts: vec![
                 AccountMeta::new(payer.pubkey(), false),
                 AccountMeta::new(bridge_pda, false),
@@ -69,7 +72,7 @@ async fn initialize() -> (BanksClient, Keypair, Pubkey, Hash) {
     let state = BridgeStateV0::try_from_slice(account.data.as_slice()).unwrap();
     assert_eq!(payer.pubkey(), state.admin);
 
-    return (banks_client, payer, bridge_pda, recent_blockhash);
+    return (banks_client, payer, bridge_program_id, bridge_pda, recent_blockhash);
 }
 
 #[tokio::test]
@@ -77,53 +80,70 @@ async fn test_initialize() {
     initialize().await;
 }
 
+async fn create_token_and_bridge_ata(banks_client: &mut BanksClient, payer: &Keypair, bridge_pda: &Pubkey, recent_blockhash: Hash) -> (Keypair, Pubkey) {
+    let mint = Keypair::new();
+    let decimals = 8;
+
+    token_action::create_mint(banks_client, recent_blockhash, &payer, &mint, decimals).await.unwrap();
+
+    // Create bridge_ata
+    let bridge_ata = token_action::create_associated_account(banks_client, recent_blockhash, &payer, &bridge_pda,
+                                            &mint.pubkey()).await.unwrap();
+
+    // Mint to the bridge ata
+    token_action::mint_to(banks_client, recent_blockhash, &payer, &mint.pubkey(),
+                          &bridge_ata, &payer, INIT_AMOUNT).await.unwrap();
+
+    // Verify the bridge ata has expected amount
+    let account = banks_client.get_account(bridge_ata).await.unwrap().unwrap();
+    let account_token = SplTokenAccount::unpack(&account.data).unwrap();
+    assert_eq!(account_token.amount, INIT_AMOUNT);
+
+    return (mint, bridge_ata);
+}
+
 #[tokio::test]
 async fn test_transfer_in() {
-    let (mut banks_client, payer, bridge_pda, recent_blockhash) = initialize().await;
+    let (mut banks_client, payer, bridge_program_id, bridge_pda, recent_blockhash) = initialize().await;
+    let (mint, bridge_ata) = create_token_and_bridge_ata(&mut banks_client, &payer, &bridge_pda, recent_blockhash).await;
 
-    let mint = Keypair::new();
-    let decimals = 9;
+    // Do a transfer in
+    let amount = 1000;
+    let ix = TransferInIx::from_data(state::TransferInData{
+        amounts: vec![amount],
+    });
 
-    token_action::create_mint(
-        &mut banks_client,
-        &payer,
-        recent_blockhash,
-        &mint,
-        decimals,
-    )
-    .await
-    .unwrap();
-
-    //Create user ata
-    let payer_ata = token_action::get_token_ata(mint.pubkey(), payer.pubkey());
-    token_action::create_associated_account(
-        &mut banks_client,
-        recent_blockhash,
-        &payer,
-        &payer.pubkey(),
-        &mint.pubkey()
+    let user = Keypair::new();
+    let user_ata = token_action::create_associated_account(
+        &mut banks_client, recent_blockhash, &payer, &user.pubkey(), &mint.pubkey()
     ).await.unwrap();
 
-    // Create bridge ata
-    let bridge_ata = token_action::get_token_ata(mint.pubkey(), bridge_pda);
-    token_action::create_associated_account(
-        &mut banks_client,
+    // Make the transfer request
+    let transaction = Transaction::new_signed_with_payer(
+        &[
+            Instruction {
+                program_id: bridge_program_id,
+                accounts: vec![
+                    AccountMeta::new(payer.pubkey(), true),
+                    AccountMeta::new_readonly(spl_token::id(), false),
+                    AccountMeta::new_readonly(bridge_pda, false),
+
+                    AccountMeta::new(bridge_ata, false),
+                    AccountMeta::new(user_ata, false),
+                ],
+                data: ix.try_to_vec().unwrap(),
+            }
+        ],
+        Some(&payer.pubkey()),
+        &[&payer],
         recent_blockhash,
-        &payer,
-        &bridge_pda,
-        &mint.pubkey()
-    ).await.unwrap();
+    );
 
-    // Mint to bridge ata
-    token_action::mint_to(&mut banks_client, &payer, recent_blockhash, &mint.pubkey(),
-                          &payer_ata, &payer.pubkey(), 1_000_000_000_000_000);
+    banks_client.process_transaction(transaction).await.unwrap();
 
-    let account = banks_client.get_account(payer_ata).await.unwrap().unwrap();
-    println!("AAAAA balance = {:?}", account);
-
-    let source_token = SplTokenAccount::unpack(&account.data).unwrap();
-    println!("bridge_pda = {:?}", bridge_pda);
-    println!("owner = {:?}", source_token.owner);
-    println!("amount = {:?}", source_token.amount);
+    // Check balance
+    let solana_account = banks_client.get_account(user_ata).await.unwrap().unwrap();
+    let token_account = spl_token::state::Account::unpack(solana_account.data.as_slice()).unwrap();
+    assert_eq!(amount, token_account.amount);
 }
 

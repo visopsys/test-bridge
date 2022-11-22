@@ -11,10 +11,12 @@ use solana_program::{
     system_instruction, system_program,
     sysvar::{rent::Rent, Sysvar},
 };
+use solana_program::system_instruction::transfer;
 
 use crate::error::BridgeError;
 use crate::state::{
     AddSpenderData, BridgeInstruction, BridgeStateV0, TransferInData, TransferOutData,
+    TransferInIx,
 };
 pub struct Processor {}
 
@@ -96,6 +98,8 @@ impl Processor {
             spender_index: 0,
         };
 
+        msg!("Bridge admin = {:?}", user.key);
+
         bridge_state.serialize(&mut *bridge_pda.data.borrow_mut())?;
 
         Ok(())
@@ -153,12 +157,12 @@ impl Processor {
         let bridge_spender = next_account_info(accounts_iter)?;
         let token_program_ai = next_account_info(accounts_iter)?;
         let bridge_pda = next_account_info(accounts_iter)?;
-        let user_ata = next_account_info(accounts_iter)?;
-        let bridge_ata = next_account_info(accounts_iter)?;
 
         let bridge_state = BridgeStateV0::try_from_slice(&bridge_pda.data.borrow())?;
 
-        // Verify that user is one of the spenders
+        msg!("In the transfer in ....");
+
+        // Verify that this message is signed by the user.
         assert!(
             bridge_spender.is_signer,
             "transfer_in: User must sign the message"
@@ -176,33 +180,41 @@ impl Processor {
             return Err(BridgeError::NotAnAdmin.into());
         }
 
-        // Check that the bridge pda is the owner of the bridgeAta
-        assert_eq!(
-            bridge_ata.owner, bridge_pda.key,
-            "transfer_in: Bridge pda must be the owner of the bridge ata"
-        );
+        // Verify that all the tokens must be valid and the bridge has account for each tokens.
+        let transfer_in = TransferInIx::try_from_slice(&data_vec).unwrap().transfer_data;
+        assert!(transfer_in.amounts.len() > 0, "amount array length should be positive");
 
-        // Deserialize transfer in amount.
-        let transfer_in = TransferInData::try_from_slice(&data_vec[1..]).unwrap();
+        for item in transfer_in.amounts.into_iter().enumerate() {
+            let (i, amount): (usize, u64) = item;
+            assert!(amount > 0, "Amount must be positive!");
 
-        // Transfer token from bridge to user.
-        invoke_signed(
-            &spl_token::instruction::transfer(
-                &spl_token::ID,
-                bridge_ata.key,
-                user_ata.key,
-                bridge_pda.key,
-                &[bridge_pda.key],
-                transfer_in.amount,
-            )?,
-            &[
-                user_ata.clone(),
-                bridge_ata.clone(),
-                bridge_pda.clone(),
-                token_program_ai.clone(),
-            ],
-            &[&[b"SisuBridge", &[bridge_state.bump]]],
-        )?;
+            let bridge_ata = next_account_info(accounts_iter)?;
+            let receiver_ata = next_account_info(accounts_iter)?;
+
+            // assert_eq!(
+            //     bridge_ata.owner, bridge_pda.key,
+            //     "transfer_in: Bridge pda must be the owner of the bridge ata for transfer index {}", i
+            // );
+
+            // Transfer token from bridge to user.
+            invoke_signed(
+                &spl_token::instruction::transfer(
+                    &spl_token::ID,
+                    bridge_ata.key,
+                    receiver_ata.key,
+                    bridge_pda.key,
+                    &[bridge_pda.key],
+                    amount,
+                )?,
+                &[
+                    bridge_ata.clone(),
+                    receiver_ata.clone(),
+                    bridge_pda.clone(),
+                    token_program_ai.clone(),
+                ],
+                &[&[b"SisuBridge", &[bridge_state.bump]]],
+            )?;
+        }
 
         Ok(())
     }
