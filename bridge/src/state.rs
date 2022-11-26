@@ -30,6 +30,7 @@ pub struct TransferOutData {
 
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct TransferInData {
+    pub nonce: u64,
     pub amounts: Vec<u64>,
 }
 
@@ -46,24 +47,23 @@ pub struct AddSpenderData {
 
 impl TransferInIx {
     pub fn from_data(data: TransferInData) -> TransferInIx {
-        return TransferInIx{
+        return TransferInIx {
             bridge_ix: BridgeInstruction::TransferIn,
             transfer_data: data,
-        }
+        };
     }
 }
 
 #[cfg(test)]
 mod test {
-    use borsh::{BorshDeserialize, BorshSerialize};
-    use solana_program::pubkey::Pubkey;
-
     use crate::state::TransferInData;
     use crate::state::TransferOutData;
+    use borsh::{BorshDeserialize, BorshSerialize};
 
     #[test]
     fn test_serialize_transfer_in() {
         let transfer_in = TransferInData {
+            nonce: 1,
             amounts: vec![1, 2, 3],
         };
 
