@@ -2,7 +2,7 @@ use core::slice::Iter;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{
-    account_info::{AccountInfo, next_account_info},
+    account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
     msg,
     program::invoke_signed,
@@ -180,11 +180,16 @@ impl Processor {
         }
 
         // Verify that all the tokens must be valid and the bridge has account for each tokens.
-        let transfer_in = TransferInIx::try_from_slice(&data_vec).unwrap().transfer_data;
-        assert!(transfer_in.amounts.len() > 0, "amount array length should be positive");
+        let transfer_in = TransferInIx::try_from_slice(&data_vec)
+            .unwrap()
+            .transfer_data;
+        assert!(
+            transfer_in.amounts.len() > 0,
+            "amount array length should be positive"
+        );
 
         for item in transfer_in.amounts.into_iter().enumerate() {
-            let (i, amount): (usize, u64) = item;
+            let (_, amount): (usize, u64) = item;
             assert!(amount > 0, "Amount must be positive!");
 
             let bridge_ata = next_account_info(accounts_iter)?;

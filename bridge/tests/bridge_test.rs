@@ -2,7 +2,6 @@
 
 mod token_action;
 use sisu_bridge::state;
-use std::{print, println};
 use {
     assert_matches::*,
     borsh::{BorshDeserialize, BorshSerialize},
@@ -11,24 +10,12 @@ use {
     sisu_bridge::state::BridgeStateV0,
     sisu_bridge::state::TransferInIx,
     solana_program::instruction::{AccountMeta, Instruction},
-    solana_program::{
-        account_info::{next_account_info, AccountInfo},
-        entrypoint::ProgramResult,
-        hash::Hash,
-        msg,
-        program::invoke_signed,
-        program_error::ProgramError,
-        pubkey::Pubkey,
-        system_instruction, system_program,
-        sysvar::rent::Rent,
-    },
+    solana_program::{hash::Hash, pubkey::Pubkey, system_program},
     solana_program_test::*,
     solana_sdk::{
         program_pack::Pack, signature::Keypair, signature::Signer, transaction::Transaction,
-        transport::TransportError,
     },
-    spl_associated_token_account::get_associated_token_address,
-    spl_token::{id, instruction, state::Account as SplTokenAccount, state::Mint},
+    spl_token::state::Account as SplTokenAccount,
 };
 
 const INIT_AMOUNT: u64 = 1_000_000_000_000_000;
