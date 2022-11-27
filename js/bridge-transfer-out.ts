@@ -28,7 +28,7 @@ const transferOut = async(bridgeProgramId: PublicKey, tokenPubkey: PublicKey, ow
   console.log("Bridge ATA = ", bridgeAta.toString());
 
   const data = new TransferOutData({
-    amount: new BN(10),
+    amount: new BN(1000e8),
     tokenAddress: tokenPubkey.toString(),
     chainId: 189985, // ganache1
     recipient: "0x8095f5b69F2970f38DC6eBD2682ed71E4939f988",

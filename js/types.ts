@@ -18,16 +18,17 @@ const TransferOutDataSchema = new Map([[TransferOutData,
 ]]);
 
 class TransferInData {
-  amount: BN = new BN(0);
+  nonce: number = 0;
+  amount: Array<number> = [];
 
-  public constructor(init?:Partial<TransferOutData>) {
+  public constructor(init?:Partial<TransferInData>) {
     Object.assign(this, init);
   }
 }
 
-const TransferInDataSchema =  new Map([[TransferOutData,
+const TransferInDataSchema =  new Map([[TransferInData,
   { kind: 'struct',
-    fields: [['amount', 'u128']]
+    fields: [['nonce', 'u64'], ['amount', ['u64']]]
   }
 ]]);
 

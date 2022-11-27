@@ -16,7 +16,7 @@ const approveToken = async(bridgePda: PublicKey, mintPubkey: PublicKey, ownerAta
       mintPubkey, // mint
       bridgePda, // delegate
       feePayer.publicKey, // owner of token account
-      1e8, // amount, if your deciamls is 8, 10^8 for 1 token
+      100000e8, // amount, if your deciamls is 8, 10^8 for 1 token
       8 // decimals
     )
   );

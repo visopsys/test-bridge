@@ -28,7 +28,7 @@ const createTokenAccount = async (mintPubkey: PublicKey, ownerPubkey: PublicKey)
   );
 
   if (await accountExisted(connection, ata)) {
-    console.log("ATA account has been created");
+    console.log("ATA account has been created. Do nothing");
     return ata;
   }
 
@@ -47,6 +47,12 @@ const createTokenAccount = async (mintPubkey: PublicKey, ownerPubkey: PublicKey)
     commitment: "confirmed",
   });
 
+  // Check that the ata is created
+  if (!(await accountExisted(connection, ata))) {
+    console.log("The ata does not exist, ata = ",ata.toBase58());
+    process.exit(0);
+  }
+
   console.log(`ATA: ${ata.toBase58()}`);
 
   return ata;
@@ -57,8 +63,12 @@ const createTokenAccount = async (mintPubkey: PublicKey, ownerPubkey: PublicKey)
     return ;
   }
 
-  const feePayer = await getFeePayer();
-  await createTokenAccount(mintPubkey, feePayer.publicKey);
+  if (process.argv.length == 2) {
+    const feePayer = await getFeePayer();
+    await createTokenAccount(mintPubkey, feePayer.publicKey);
+  } else {
+    await createTokenAccount(mintPubkey, new PublicKey(process.argv[2]));
+  }
 })();
 
 

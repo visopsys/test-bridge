@@ -9,7 +9,7 @@ import {
 import dotenv from 'dotenv';
 dotenv.config();
 
-let NETWORK = "devnet";
+let NETWORK = "localhost";
 
 const bridgeProgramId = new PublicKey(String(process.env.BRIDGE_PROGRAM_ID!));
 const mintPubkey = new PublicKey(String(process.env.MINT_PUBKEY!));

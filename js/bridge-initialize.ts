@@ -4,7 +4,7 @@ import {
 import { format } from "path";
 import { getFeePayer, getConnection, bridgeProgramId, getTxUrl, } from "./common";
 
-const createBridgeAccount = async() => {
+const createBridgeAccount = async(bridgeProgramId: PublicKey) => {
   const connection = getConnection();
   const feePayer = await getFeePayer();
 
@@ -69,7 +69,7 @@ const createBridgeAccount = async() => {
     return ;
   }
 
-  await createBridgeAccount();
+  await createBridgeAccount(bridgeProgramId);
 })();
 
 export {

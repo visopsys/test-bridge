@@ -27,7 +27,7 @@ const genSecret = async (bridgeProgramIdString: String) => {
   console.log("Creating bridge account ....");
 
   // Create bridge pda
-  await createBridgeAccount();
+  await createBridgeAccount(bridgeProgramId);
 
   console.log("Done bridge account ....");
 
